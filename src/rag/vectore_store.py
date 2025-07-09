@@ -7,7 +7,7 @@ load_dotenv()
 class PineconeVectorStore:
     def __init__(self, index_name: str, api_key: str = None):
         if api_key is None:
-            api_key=os.getenv("PINECONE_API_KEY")
+            api_key=os.environ.get("PINECONE_API_KEY")
             print(f"Pinecone API key: {api_key}")
         
         if not api_key or not index_name:
