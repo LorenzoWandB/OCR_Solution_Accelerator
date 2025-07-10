@@ -1,0 +1,18 @@
+{
+  "Income Statement Example": {
+    "Company": "Boston Tea Enterprises, Inc.",
+    "Total Revenue": 150000,
+    "Cost of Goods Sold": -25000,
+    "Gross Profit": 125000,
+    "Operating Expenses": {
+      "Payroll": 15000,
+      "Utilities": 10000,
+      "Rent": 15000,
+      "Depreciation": 10000
+    },
+    "Total Operating Expenses": -50000,
+    "Interest": -15000,
+    "Taxes": -15000,
+    "Net Profit": 45000
+  }
+}

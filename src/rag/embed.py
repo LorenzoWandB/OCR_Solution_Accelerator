@@ -1,6 +1,7 @@
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
+import weave
 
 load_dotenv()
 
@@ -19,6 +20,7 @@ def read_text_file(file_path):
         print(f"An error occurred while reading the file: {e}")
         return None
 
+@weave.op()
 def create_embeddings(text, model="text-embedding-3-small"):
     if not text:
         print("Error: Input text is empty.")
@@ -34,6 +36,7 @@ def create_embeddings(text, model="text-embedding-3-small"):
         print(f"An error occurred while creating embeddings: {e}")
         return None
 
+@weave.op()
 def embed_from_file(file_path, model="text-embedding-3-small"):
     text = read_text_file(file_path)
     if text is None:
