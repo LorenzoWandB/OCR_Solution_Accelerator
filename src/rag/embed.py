@@ -33,3 +33,10 @@ def create_embeddings(text, model="text-embedding-3-small"):
     except Exception as e:
         print(f"An error occurred while creating embeddings: {e}")
         return None
+
+def embed_from_file(file_path, model="text-embedding-3-small"):
+    text = read_text_file(file_path)
+    if text is None:
+        return None
+    
+    return create_embeddings(text, model)
