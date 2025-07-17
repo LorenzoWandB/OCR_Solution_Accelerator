@@ -8,6 +8,7 @@ from src.ocr.extractor import OCRExtractor
 from src.rag.embed import OpenAIEmbedder
 from src.rag.vectore_store import PineconeVectorStore
 from src.rag.retriever import Retriever
+from src.rag.chunker import chunk_text_by_line, chunk_text_with_overlap, chunk_text_by_paragraph
 import weave
 
 # Page config
@@ -50,8 +51,8 @@ if page == "Upload & Process":
         help="Upload an image containing text for OCR processing"
     )
     
-    # Namespace selection
-    namespace = st.text_input("Namespace", value="default", help="Organize documents by namespace")
+    # Use a fixed namespace for all documents
+    namespace = "default"
     
     if uploaded_file is not None:
         # Display uploaded image
@@ -88,35 +89,72 @@ if page == "Upload & Process":
                         # Display extracted text
                         with st.expander("View Extracted Text"):
                             st.text_area("Extracted Text", extracted_text, height=200)
-                        
-                        # Step 2: Create Embeddings
-                        with st.status("Creating embeddings...", expanded=True) as status:
-                            embedding = embedder.create_embeddings(extracted_text)
-                            if embedding:
-                                status.update(label="✅ Embeddings created", state="complete")
-                            else:
-                                status.update(label="❌ Embedding creation failed", state="error")
-                                st.stop()
-                        
-                        # Step 3: Store in Pinecone
-                        with st.status("Storing in vector database...", expanded=True) as status:
-                            doc_metadata = {
-                                "filename": uploaded_file.name,
-                                "text": extracted_text[:1000],
-                                "full_text": extracted_text
-                            }
-                            doc_id = f"{namespace}_{uploaded_file.name}_{hash(extracted_text)}"
+
+                        # Step 2: Chunk the text
+                        with st.status("Chunking text...", expanded=True) as status:
+                            # Determine best chunking method based on text characteristics
+                            text_length = len(extracted_text)
+                            has_paragraphs = '\n\n' in extracted_text
                             
-                            vector_store.upsert(
-                                vectors=[(doc_id, embedding, doc_metadata)],
-                                namespace=namespace
-                            )
-                            status.update(label="✅ Stored in database", state="complete")
+                            if text_length > 1000 and has_paragraphs:
+                                # Use paragraph chunking for longer texts with clear structure
+                                chunks = chunk_text_by_paragraph(extracted_text, min_length=200)
+                                chunk_method = "paragraph"
+                            elif text_length > 500:
+                                # Use overlapping chunks for medium texts
+                                chunk_data = chunk_text_with_overlap(extracted_text, chunk_size=400, overlap=50)
+                                chunks = [c['text'] for c in chunk_data]
+                                chunk_method = "overlapping"
+                            else:
+                                # Use line-by-line for short texts
+                                chunks = chunk_text_by_line(extracted_text)
+                                chunk_method = "line-by-line"
+                            
+                            if chunks:
+                                status.update(label=f"✅ Created {len(chunks)} chunks using {chunk_method} method", state="complete")
+                                st.success(f"Created {len(chunks)} chunks using {chunk_method} chunking")
+                            else:
+                                status.update(label="❌ No chunks created", state="error")
+                                st.error("Text could not be split into chunks.")
+                                st.stop()
+
+                        with st.expander("View Text Chunks"):
+                            st.write(chunks)
+                        
+                        # Step 3 & 4: Create Embeddings and Store in Pinecone
+                        with st.status("Creating embeddings and storing in vector database...", expanded=True) as status:
+                            vectors_to_upsert = []
+                            base_doc_id = f"{namespace}_{uploaded_file.name}"
+
+                            for i, chunk in enumerate(chunks):
+                                # Create embedding for the chunk
+                                embedding = embedder.create_embeddings(chunk)
+                                if embedding:
+                                    # Prepare metadata for the chunk
+                                    chunk_metadata = {
+                                        "filename": uploaded_file.name,
+                                        "text": chunk,
+                                        "chunk_number": i + 1,
+                                        "document_id": base_doc_id
+                                    }
+                                    # Create a unique ID for each chunk
+                                    chunk_id = f"{base_doc_id}_{i+1}"
+                                    
+                                    vectors_to_upsert.append((chunk_id, embedding, chunk_metadata))
+
+                            if vectors_to_upsert:
+                                vector_store.upsert(
+                                    vectors=vectors_to_upsert,
+                                    namespace=namespace
+                                )
+                                status.update(label=f"✅ Stored {len(vectors_to_upsert)} chunks in database", state="complete")
+                            else:
+                                status.update(label="❌ No vectors to store", state="error")
+                                st.stop()
                         
                         # Success message
                         st.balloons()
-                        st.success(f"Document '{uploaded_file.name}' processed successfully!")
-                        st.info(f"Document ID: {doc_id}")
+                        st.success(f"Document '{uploaded_file.name}' processed and chunked successfully!")
                         
                         # Clean up
                         os.unlink(tmp_path)
@@ -130,12 +168,12 @@ elif page == "Search Documents":
     # Search interface
     query = st.text_input("Enter your search query", placeholder="What are you looking for?")
     
-    col1, col2, col3 = st.columns(3)
+    # Use a fixed namespace and adjust layout
+    namespace = "default"
+    col1, col2 = st.columns([3, 1])
     with col1:
-        namespace = st.text_input("Namespace", value="default")
-    with col2:
         top_k = st.slider("Number of results", 1, 10, 5)
-    with col3:
+    with col2:
         use_reranking = st.checkbox("Use reranking", value=True)
     
     if st.button("Search", type="primary") and query:
@@ -155,16 +193,8 @@ elif page == "Search Documents":
                         score = result.get("score", 0)
                         
                         with st.expander(f"Result {i+1}: {metadata.get('filename', 'Unknown')} (Score: {score:.4f})"):
-                            st.write("**Text Preview:**")
-                            st.write(metadata.get("text", "")[:500] + "...")
-                            
-                            if st.checkbox(f"Show full text for result {i+1}"):
-                                st.text_area(
-                                    "Full Text",
-                                    metadata.get("full_text", metadata.get("text", "")),
-                                    height=300,
-                                    key=f"full_text_{i}"
-                                )
+                            st.write(f"**Chunk {metadata.get('chunk_number', 0)}:**")
+                            st.info(metadata.get('text', ''))
                 else:
                     st.warning("No results found")
                     

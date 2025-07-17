@@ -11,8 +11,9 @@ class OCRExtractor:
     def __init__(self):
         self.client = OpenAI()
         self.default_prompt = """
-Extract all readable text from this image. Format the extracted entities as a valid JSON.
-Do not return any extra text, just the JSON. Do not include ```json```
+From the document image, extract all text content verbatim and return it as a single block of text.
+Preserve the original structure, including lines and spacing, as much as possible.
+Do not summarize, interpret, or format the text as JSON.
 """
     
     def extract_text_from_image_local(self, image_path: str, prompt: str = None) -> str:
@@ -23,8 +24,9 @@ Do not return any extra text, just the JSON. Do not include ```json```
 def extract_text_from_image_local(image_path: str, prompt: str = None) -> str:
     if prompt is None:
         prompt = """
-Extract all readable text from this image. Format the extracted entities as a valid JSON.
-Do not return any extra text, just the JSON. Do not include ```json```
+From the document image, extract all text content verbatim and return it as a single block of text.
+Preserve the original structure, including lines and spacing, as much as possible.
+Do not summarize, interpret, or format the text as JSON.
 """
     with open(image_path, "rb") as image_file:
         image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
