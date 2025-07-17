@@ -7,9 +7,25 @@ from openai import OpenAI
 
 load_dotenv()
 
+class OCRExtractor:
+    def __init__(self):
+        self.client = OpenAI()
+        self.default_prompt = """
+Extract all readable text from this image. Format the extracted entities as a valid JSON.
+Do not return any extra text, just the JSON. Do not include ```json```
+"""
+    
+    def extract_text_from_image_local(self, image_path: str, prompt: str = None) -> str:
+        return extract_text_from_image_local(image_path, prompt or self.default_prompt)
+
 
 @weave.op()
-def extract_text_from_image_local(image_path: str, prompt: str) -> str:
+def extract_text_from_image_local(image_path: str, prompt: str = None) -> str:
+    if prompt is None:
+        prompt = """
+Extract all readable text from this image. Format the extracted entities as a valid JSON.
+Do not return any extra text, just the JSON. Do not include ```json```
+"""
     with open(image_path, "rb") as image_file:
         image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
     

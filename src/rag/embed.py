@@ -9,6 +9,17 @@ client = OpenAI(
     api_key=os.environ.get("OPENAI_API_KEY"),
 )
 
+class OpenAIEmbedder:
+    def __init__(self, model="text-embedding-3-small"):
+        self.model = model
+        self.client = client
+    
+    def create_embeddings(self, text):
+        return create_embeddings(text, self.model)
+    
+    def embed_from_file(self, file_path):
+        return embed_from_file(file_path, self.model)
+
 def read_text_file(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
