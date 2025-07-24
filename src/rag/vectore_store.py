@@ -5,7 +5,6 @@ import weave
 
 load_dotenv()
 
-@weave.op()
 class PineconeVectorStore:
     def __init__(self, index_name: str, api_key: str = None, namespace: str = None):
         if api_key is None:
@@ -19,7 +18,7 @@ class PineconeVectorStore:
         self.namespace = namespace if namespace else None
         self.index = None
     # Create a serverless index if it doesn't exist and connect to it
-    @weave.op()
+   
     def initialize_index(self, dimension: int, metric: str = 'cosine', cloud: str = 'aws', region:str = 'us-east-1'):
         if self.index_name not in self.pc.list_indexes().names():
             print(f"Creating index '{self.index_name}'...")
@@ -38,7 +37,7 @@ class PineconeVectorStore:
         print(f"Connected to index '{self.index_name}'.")
 
     # Upsert vectors into the Pinecone index
-    @weave.op()
+    
     def upsert(self, vectors, namespace: str = None):
         if not self.index:
             raise ConnectionError("Index is not initialized. Call initialize_index() first.")
@@ -48,7 +47,7 @@ class PineconeVectorStore:
         print(f"Upserted {len(vectors)} vectors to namespace '{namespace_to_use or 'default'}'.")
 
     # Query the Pinecone index for similar vectors
-    @weave.op()
+    
     def query(self, vector, top_k: int = 5, namespace: str = None, include_metadata: bool = True):
         if not self.index:
             raise ConnectionError("Index is not initialized. Call initialize_index() first.")
@@ -62,7 +61,7 @@ class PineconeVectorStore:
         )
     
     # Get statistics about the index
-    @weave.op()
+    
     def describe_index_stats(self):
         if not self.index:
             raise ConnectionError("Index is not initialized. Call initialize_index() first.")

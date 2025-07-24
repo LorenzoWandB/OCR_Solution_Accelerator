@@ -34,7 +34,6 @@ class Retriever:
         
         return query.strip()
 
-    @weave.op()
     def retrieve(self, query: str, top_k: int = 5, namespace: str = None, preprocess: bool = True):
         logger.info(f"Retrieving documents for query: '{query}' with top_k={top_k}")
         
@@ -44,11 +43,12 @@ class Retriever:
             if processed_query != query:
                 logger.debug(f"Query preprocessed: '{query}' -> '{processed_query}'")
             
-            query_embedding = create_embeddings(processed_query)
-            if query_embedding is None:
+            query_embedding_list = create_embeddings(processed_query)
+            if not query_embedding_list:
                 logger.error("Could not create embedding for the query.")
                 return []
 
+            query_embedding = query_embedding_list[0]
             logger.debug(f"Query embedding created successfully")
             
             results = self.vector_store.query(
@@ -57,19 +57,42 @@ class Retriever:
                 include_metadata=True,
                 namespace=namespace or self.vector_store.namespace
             )
+            
+            logger.debug(f"Query results type: {type(results)}")
+            logger.debug(f"Query results: {results}")
 
-            if not results or not results.get('matches'):
+            if not results:
                 logger.warning(f"No results found for query: '{query}'")
                 return []
-
-            matches = results.get('matches', [])
+            
+            # Handle different response formats from Pinecone
+            if hasattr(results, 'matches'):
+                matches = results.matches
+            elif isinstance(results, dict) and 'matches' in results:
+                matches = results.get('matches', [])
+            else:
+                logger.error(f"Unexpected results format: {type(results)}")
+                return []
             logger.info(f"Found {len(matches)} matches for query: '{query}'")
             
             # Log sample of results for debugging
             if matches:
-                logger.debug(f"Top match score: {matches[0].get('score', 0):.4f}")
+                first_match = matches[0]
+                score = first_match.score if hasattr(first_match, 'score') else first_match.get('score', 0)
+                logger.debug(f"Top match score: {score:.4f}")
             
-            return matches
+            # Convert matches to a list of dicts for serialization
+            serialized_matches = []
+            for match in matches:
+                # Extract match data properly from Pinecone response
+                serialized_match = {
+                    'id': match.id if hasattr(match, 'id') else match.get('id', ''),
+                    'score': match.score if hasattr(match, 'score') else match.get('score', 0.0),
+                    'metadata': match.metadata if hasattr(match, 'metadata') else match.get('metadata', {})
+                }
+                serialized_matches.append(serialized_match)
+            
+            return serialized_matches
             
         except Exception as e:
             logger.error(f"Error during retrieval: {str(e)}")
@@ -122,15 +145,19 @@ class Retriever:
 
             # Re-associate reranked results with original metadata
             formatted_results = []
-            for result in reranked_results.results:
-                original_index = result.index
-                original_match = original_docs_map.get(original_index)
-                
-                if original_match:
-                    # Create a copy to avoid modifying the original
-                    enhanced_match = original_match.copy()
-                    enhanced_match['score'] = result.relevance_score
-                    formatted_results.append(enhanced_match)
+            if reranked_results.results:
+                for result in reranked_results.results:
+                    original_index = result.index
+                    original_match = original_docs_map.get(original_index)
+                    
+                    if original_match:
+                        # Create a copy to avoid modifying the original
+                        enhanced_match = original_match.copy()
+                        enhanced_match['score'] = result.relevance_score
+                        formatted_results.append(enhanced_match)
+            else:
+                logger.warning("Reranking returned no results, returning initial results")
+                return initial_results[:rerank_top_n]
                     
             logger.info(f"Reranking complete. Returned {len(formatted_results)} results")
             return formatted_results
