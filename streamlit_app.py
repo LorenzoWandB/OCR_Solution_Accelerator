@@ -87,11 +87,21 @@ elif page == "Search Documents":
     top_k = st.slider("Number of results to retrieve", 1, 10, 5)
     
     if st.button("Search", type="primary") and query:
-        with st.spinner("Searching for relevant documents..."):
+        with st.spinner("Searching for relevant documents and generating an answer..."):
             try:
                 # Call the model's predict method
                 # This is a tracked Weave operation
                 prediction = model.predict(query, top_k=top_k)
+                
+                # Display the generated answer
+                generated_answer = prediction.get("generated_answer")
+                if generated_answer:
+                    st.subheader("🤖 Generated Answer")
+                    st.markdown(generated_answer)
+                else:
+                    st.warning("The model did not generate an answer.")
+
+                # Display the retrieved chunks
                 results = prediction.get("raw_matches", [])
                 
                 if results:

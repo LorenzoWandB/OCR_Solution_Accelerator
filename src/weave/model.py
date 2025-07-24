@@ -6,6 +6,8 @@ from src.rag.chunker import chunk_text_with_overlap
 from src.rag.embed import create_embeddings
 from src.rag.vectore_store import PineconeVectorStore
 from src.rag.retriever import Retriever
+from openai import OpenAI
+
 
 class RagModel(weave.Model):
     # --- Configuration Attributes ---
@@ -26,12 +28,24 @@ class RagModel(weave.Model):
     # Retriever configuration
     retriever_top_k: int = 5
 
+    # LLM configuration
+    llm_model: str = "gpt-3.5-turbo"
+    llm_temperature: float = 0.7
+
     def __init__(self, index_name: str, namespace: str, **kwargs):
         super().__init__(index_name=index_name, namespace=namespace, **kwargs)
         # We don't initialize the retriever here to avoid connecting to Pinecone
         # when the model is just instantiated. It will be lazy-loaded.
         self._retriever = None
+        self._openai_client = None
     
+    @property
+    def openai_client(self):
+        """Lazy-load the OpenAI client."""
+        if self._openai_client is None:
+            self._openai_client = OpenAI()
+        return self._openai_client
+
     @property
     def retriever(self):
         """Lazy-load the retriever to avoid issues with Weave serialization."""
@@ -97,22 +111,50 @@ class RagModel(weave.Model):
     @weave.op()
     def predict(self, query: str, top_k: Optional[int] = None) -> Dict[str, Any]:
         """
-        This method performs the retrieval part of the RAG pipeline.
-        It takes a query and returns the retrieved context.
+        This method performs the full RAG pipeline:
+        1. Retrieves context from the vector store.
+        2. Uses an LLM to generate an answer based on the context.
         """
+        # 1. Retrieve context
         k = top_k if top_k is not None else self.retriever_top_k
         print(f"Retrieving context for query: '{query}' with top_k={k}")
         retrieved_matches = self.retriever.retrieve(query, top_k=k)
         
-        # For now, we'll just return the retrieved context.
-        # In a full implementation, you would feed this to an LLM.
         context = [match.get('metadata', {}).get('text', '') for match in retrieved_matches]
+        
+        # 2. Generate an answer using the LLM
+        print("Generating answer with LLM...")
+        generated_answer = self.generate_answer(query, context)
 
         return {
             "query": query,
+            "generated_answer": generated_answer,
             "retrieved_context": context,
             "raw_matches": retrieved_matches
         }
+
+    def generate_answer(self, query: str, context: List[str]) -> str:
+        """Generates an answer using the LLM based on the query and context."""
+        context_str = "\n---\n".join(context)
+        
+        prompt = f"""
+You are a friendly financial assistant. Use the provided document context to answer the user's question in a complete sentence.
+
+=== Document Context ===
+{context_str}
+=== End Context ===
+
+Question: {query}
+Helpful Answer:
+""".strip()
+        
+        response = self.openai_client.chat.completions.create(
+            model=self.llm_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=self.llm_temperature,
+        )
+        
+        return response.choices[0].message.content.strip()
 
     @weave.op()
     def get_index_stats(self) -> Dict[str, Any]:
