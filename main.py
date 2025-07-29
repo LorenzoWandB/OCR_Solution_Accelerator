@@ -50,9 +50,13 @@ def run_evaluation(args):
         print(f"✓ Synthetic dataset created: {dataset_ref}")
     
     # Run evaluation using Weave's native system
+    # Use the same index and namespace where evaluation data is stored
+    eval_index_name = f"{PINECONE_INDEX_NAME}-eval"
+    eval_namespace = "eval_dataset"
+    
     results = run_weave_native_evaluation_sync(
-        index_name=PINECONE_INDEX_NAME,
-        namespace=PINECONE_NAMESPACE,
+        index_name=eval_index_name,
+        namespace=eval_namespace,
         dataset_ref=dataset_ref,
         k=5
     )

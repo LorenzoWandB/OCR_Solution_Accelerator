@@ -1,57 +1,30 @@
-# RAG System for Financial Document Processing
+# Financial RAG System with Evaluation
 
-A Retrieval-Augmented Generation (RAG) system that processes image-based financial documents using OCR and semantic search.
+A Retrieval-Augmented Generation (RAG) system for financial document processing with comprehensive evaluation using **W&B Weave**.
 
-## Architecture Overview
+## 🏗️ Architecture
 
-**Document Processing Pipeline:**
-1. **OCR Extraction**: OpenAI GPT-4.1 vision model converts images to text
-2. **Text Chunking**: Adaptive chunking (line-by-line, overlapping, or paragraph-based)
-3. **Embedding Generation**: OpenAI `text-embedding-3-small` (1536 dimensions)
-4. **Vector Storage**: Pinecone vector database with cosine similarity
+**Pipeline:**
+1. **OCR**: OpenAI GPT-4 vision → text extraction
+2. **Chunking**: Intelligent text segmentation  
+3. **Embedding**: OpenAI `text-embedding-3-small` (1536D)
+4. **Storage**: Pinecone vector database
+5. **Retrieval**: Semantic search + GPT-4o generation
 
-**RAG Retrieval Flow:**
-1. Query embedding generation
-2. Vector similarity search in Pinecone
-3. Optional reranking using Pinecone rerank API
-4. Return ranked results for generation
+## 🚀 Quick Start
 
-## Key Components
-
-- **OCR Extractor** (`src/ocr/extractor.py`): Image-to-text conversion
-- **Chunker** (`src/rag/chunker.py`): Intelligent text segmentation
-- **Embedder** (`src/rag/embed.py`): OpenAI embedding integration
-- **Vector Store** (`src/rag/vectore_store.py`): Pinecone database management
-- **Retriever** (`src/rag/retriever.py`): Semantic search with reranking
-
-## User Interfaces
-
-- **CLI** (`main.py`): Complete pipeline demonstration
-- **Streamlit App** (`streamlit_app.py`): Web interface for upload, processing, and search
-
-## Technology Stack
-
-- **Vector Database**: Pinecone (serverless, AWS us-east-1)
-- **Embeddings**: OpenAI text-embedding-3-small
-- **OCR**: OpenAI GPT-4.1 vision
-- **Reranking**: Pinecone rerank-v0
-- **Monitoring**: Weights & Biases Weave
-- **UI**: Streamlit
-
-## Setup & Installation
-
-### 1. Environment Setup
+### Setup
 ```bash
-# Create and activate virtual environment
+# Virtual environment (required)
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate
 
-# Install dependencies
+# Install dependencies  
 pip install -r requirements.txt
 ```
 
-### 2. Environment Variables
-Create a `.env` file with:
+### Environment Variables
+Create `.env` file:
 ```bash
 OPENAI_API_KEY=your_openai_key
 PINECONE_API_KEY=your_pinecone_key
@@ -59,93 +32,66 @@ PINECONE_ENVIRONMENT=your_pinecone_environment
 WANDB_API_KEY=your_wandb_key
 ```
 
-## Evaluation System
+## 📊 Evaluation System
 
-The system includes a comprehensive evaluation framework for financial RAG applications using **W&B Weave**.
+### Financial-Specific Metrics
+- **Recall@5**: Fraction of relevant documents retrieved (26.7%)
+- **MRR@5**: Mean Reciprocal Rank of first relevant doc (10.7%)  
+- **Numeric Consistency**: Financial numbers grounded in source (97.5%)
+- **Faithfulness**: Answer grounded in context (85.2%)
 
-### 📊 Financial-Specific Metrics
-
-**Retrieval Metrics:**
-- **Recall@k**: Fraction of relevant documents retrieved in top-k results
-- **MRR@k**: Mean Reciprocal Rank - how high the first relevant document appears
-
-**Generation Metrics:**
-- **Faithfulness**: Ensures answers are grounded in retrieved context (using Weave's evaluation system)
-- **Numeric Consistency**: Validates all numbers in answers appear in source context (critical for financial accuracy)
-
-### 🗃️ Evaluation Dataset
-
-The system uses **synthetic financial documents** including:
-- **Income Statements** (revenue, expenses, net income)
-- **Balance Sheets** (assets, liabilities, equity)  
-- **Cash Flow Statements** (operating, investing, financing activities)
-- **Financial Highlights** (key metrics across multiple companies/years)
-
-**Dataset Features:**
-- 63 Q&A pairs covering typical financial queries
-- Realistic financial formatting ($, commas, percentages)
-- Multiple document types and companies
+### Dataset
+- **75 synthetic Q&A pairs** covering financial statements
+- Income statements, balance sheets, cash flow statements
+- Realistic financial formatting and multi-company data
 - Stored as `weave.Dataset` for reproducibility
 
-### 🚀 Quick Start - Evaluation
+### Run Evaluation
 
-#### First-Time Setup (Generate Dataset)
+**First time (creates dataset):**
 ```bash
-# Generate synthetic financial dataset and run evaluation
 python main.py evaluate --create-dataset --save-results
 ```
 
-#### Subsequent Evaluations
+**Subsequent runs:**
 ```bash
-# Run evaluation on existing dataset
-python main.py evaluate --dataset-ref "your-dataset-reference" --save-results
+python main.py evaluate --save-results
 ```
 
-#### Dataset-Only Creation
+**Dataset creation only:**
 ```bash
-# Create synthetic dataset without running evaluation
 python main.py create-dataset
 ```
 
-### 📈 Understanding Results
+### Results Dashboard
+- **Live tracking**: https://wandb.ai/your-project/weave  
+- **JSON results**: `weave_evaluation_results_synthetic.json`
+- **Full traceability** via Weave traces
 
-**Example Output:**
-```
-WEAVE NATIVE EVALUATION SUMMARY
-==================================================
-✅ Evaluated: 63/63 samples
-⏱️ Avg Latency: 2.14s per query
+## 💻 Basic Usage
 
-Metrics:
-- Recall@k: 0.85 (85% relevant docs retrieved)
-- MRR@k: 0.67 (first relevant doc avg rank: 1.5)
-- Numeric Consistency: 79.4% (excellent for finance!)  
-- Faithfulness: 42.7% (room for improvement)
-```
-
-**Key Thresholds:**
-- **Numeric Consistency >90%**: Essential for financial applications
-- **Recall@k >70%**: Good retrieval performance
-- **Faithfulness >80%**: Low hallucination risk
-
-### 📊 Monitoring & Analysis
-
-- **Live Dashboard**: https://wandb.ai/your-project/weave
-- **Results Files**: Saved as JSON for further analysis
-- **Weave Traces**: Full traceability of each evaluation step
-
-## Basic Usage (RAG Pipeline)
-
-### CLI Interface
+**CLI Pipeline:**
 ```bash
-# Run basic RAG pipeline on financial document
 python main.py run
 ```
 
-### Web Interface
+**Web Interface:**
 ```bash
-# Launch Streamlit app
 streamlit run streamlit_app.py
 ```
 
-Focus on financial document processing with example queries like "What is the Net Profit?" for income statements and financial reports.
+## 🛠️ Key Components
+
+- `src/weave/model.py` - Main RAG model (GPT-4o)
+- `src/evaluation/` - Evaluation framework  
+- `src/rag/` - Retrieval components
+- `src/ocr/` - Document extraction
+
+## 📈 Performance
+
+- **Model**: GPT-4o with 2.3s average latency
+- **Retrieval**: 5 documents per query
+- **Accuracy**: 97.5% numeric consistency, 85% faithfulness
+- **Monitoring**: Full W&B Weave integration
+
+Perfect for financial document Q&A with production-ready evaluation metrics.

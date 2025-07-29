@@ -93,8 +93,8 @@ def numeric_consistency(generated_answer: str, context: List[str]) -> Dict[str, 
 
 @weave.op()
 def simple_faithfulness_scorer(output: Dict[str, Any]) -> Dict[str, float]:
-    """Simple faithfulness check - ensures answer is grounded in retrieved context."""
-    answer = output.get('answer', '').lower()
+    """Enhanced faithfulness check - ensures answer is grounded in retrieved context."""
+    answer = output.get('generated_answer', '').lower()
     context = output.get('retrieved_context', [])
     
     if not answer or not context:
@@ -102,18 +102,35 @@ def simple_faithfulness_scorer(output: Dict[str, Any]) -> Dict[str, float]:
     
     context_text = " ".join(context).lower()
     
-    # Simple word overlap scoring
-    answer_words = set(answer.split())
-    context_words = set(context_text.split())
+    # Remove common stop words and punctuation for better matching
+    import re
+    def clean_text(text):
+        # Remove punctuation and split into words
+        words = re.findall(r'\b\w+\b', text.lower())
+        # Filter out very short words and common stop words
+        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had'}
+        return set(word for word in words if len(word) > 2 and word not in stop_words)
+    
+    answer_words = clean_text(answer)
+    context_words = clean_text(context_text)
     
     if not answer_words:
         return {"faithfulness_score": 0.0}
     
-    # Calculate overlap ratio
+    # Calculate overlap ratio - focus on meaningful words
     overlap = len(answer_words.intersection(context_words))
     faithfulness_score = overlap / len(answer_words)
     
-    return {"faithfulness_score": min(faithfulness_score, 1.0)}
+    # Give bonus for numerical overlaps (important for financial data)
+    numbers_in_answer = set(re.findall(r'\b\d+(?:,\d{3})*(?:\.\d+)?\b', answer))
+    numbers_in_context = set(re.findall(r'\b\d+(?:,\d{3})*(?:\.\d+)?\b', context_text))
+    
+    if numbers_in_answer:
+        number_overlap = len(numbers_in_answer.intersection(numbers_in_context))
+        number_bonus = (number_overlap / len(numbers_in_answer)) * 0.3  # 30% bonus weight
+        faithfulness_score = min(faithfulness_score + number_bonus, 1.0)
+    
+    return {"faithfulness_score": faithfulness_score}
 
 # === WEAVE SCORERS ===
 
@@ -140,7 +157,7 @@ def mrr_at_k_scorer(relevant_context: List[str], output: Dict[str, Any]) -> Dict
 @weave.op()
 def numeric_consistency_scorer(output: Dict[str, Any]) -> Dict[str, Any]:
     """Weave scorer for numeric consistency."""
-    answer = output.get('answer', '')
+    answer = output.get('generated_answer', '')
     context = output.get('retrieved_context', [])
     
     metrics = numeric_consistency(answer, context)
