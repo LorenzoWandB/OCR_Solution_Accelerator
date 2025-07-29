@@ -93,5 +93,3 @@ streamlit run streamlit_app.py
 - **Retrieval**: 5 documents per query
 - **Accuracy**: 97.5% numeric consistency, 85% faithfulness
 - **Monitoring**: Full W&B Weave integration
-
-Perfect for financial document Q&A with production-ready evaluation metrics.

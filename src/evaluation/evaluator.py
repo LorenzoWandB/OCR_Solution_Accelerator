@@ -2,7 +2,7 @@ import weave
 from src.evaluation.dataset_creator import create_synthetic_evaluation_dataset
 
 def create_evaluation_dataset(index_name: str, 
-                            namespace: str = "eval_dataset") -> str:
+                            namespace: str = "eval_dataset"):
     """
     Create and return a synthetic Weave dataset for evaluation.
     
@@ -11,7 +11,7 @@ def create_evaluation_dataset(index_name: str,
         namespace: Pinecone namespace for evaluation data
         
     Returns:
-        Weave dataset reference
+        Weave dataset object
     """
     # Initialize Weave if not already initialized
     try:
@@ -22,6 +22,6 @@ def create_evaluation_dataset(index_name: str,
         weave.init("Solution-Accelerator-MRM-Eval")
     
     result = create_synthetic_evaluation_dataset(index_name, namespace)
-    # Return the ObjectRef directly for Weave evaluation
-    dataset_ref = result['dataset_ref']
-    return dataset_ref 
+    # Return the dataset object directly for simpler handling
+    dataset_object = result['dataset_object']
+    return dataset_object 

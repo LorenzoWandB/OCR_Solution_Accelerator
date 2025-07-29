@@ -172,23 +172,21 @@ def numeric_consistency_scorer(output: Dict[str, Any]) -> Dict[str, Any]:
 
 # === WEAVE EVALUATION SETUP ===
 
-def create_weave_evaluation(dataset_ref, k: int = 5) -> Evaluation:
+# preprocess_model_input function
+@weave.op()
+def process_query(example):
+    """Extract query from the dataset example for model input."""
+    # Example is a WeaveDict containing the full dataset row
+    # We need to extract just the query field
+    query = example["query"]
+    return {"query": query}
+
+def create_weave_evaluation(dataset, k: int = 5) -> Evaluation:
     """Create a Weave Evaluation object using the official API."""
-    # Load the dataset - handle both ObjectRef and string formats
-    try:
-        if hasattr(dataset_ref, 'get'):
-            # It's an ObjectRef, use it directly
-            dataset = dataset_ref.get()
-            print(f"✓ Loaded dataset from ObjectRef: {dataset_ref}")
-        else:
-            # It's a string, convert to ref
-            dataset = weave.ref(dataset_ref).get()
-            print(f"✓ Loaded dataset from string ref: {dataset_ref}")
-    except Exception as e:
-        print(f"Error loading dataset {dataset_ref}: {e}")
-        raise e
+    # Use the dataset object directly
+    print(f"✓ Using dataset object directly: {type(dataset)}")
     
-    print(f"Running evaluation on dataset: {dataset_ref}")
+    print(f"Running evaluation on dataset: {dataset.name}")
     
     # Create evaluation with all scorers
     evaluation = Evaluation(
@@ -199,7 +197,7 @@ def create_weave_evaluation(dataset_ref, k: int = 5) -> Evaluation:
             numeric_consistency_scorer,
             simple_faithfulness_scorer
         ],
-        preprocess_model_input=lambda x: {"query": x["query"]}  # Return dict with query
+        preprocess_model_input=process_query,
     )
     
     return evaluation
@@ -220,7 +218,9 @@ async def run_weave_native_evaluation(
         embedding_model="text-embedding-3-small",
         chunk_size=500,
         chunk_overlap=100,
-        retriever_top_k=k
+        retriever_top_k=5,
+        llm_model="gpt-4o",
+        llm_temperature=0.7
     )
     
     print(f"Model configuration: index={index_name}, namespace={namespace}, k={k}")

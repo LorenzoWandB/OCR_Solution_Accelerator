@@ -271,7 +271,7 @@ def create_synthetic_evaluation_dataset(index_name: str, namespace: str = "eval_
     
     return {
         'dataset_ref': dataset_ref,
-        'dataset_ref_str': str(dataset_ref),
+        'dataset_object': dataset,  # Return the dataset object directly for evaluation
         'total_documents': len(documents),
         'total_chunks': len(chunked_documents),
         'total_qa_pairs': len(qa_pairs),

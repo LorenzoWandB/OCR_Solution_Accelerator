@@ -39,15 +39,34 @@ def run_evaluation(args):
     # Initialize Weave for evaluation
     weave.init("Solution-Accelerator-MRM-Eval")
     
-    # Create dataset if requested
+    # Handle dataset reference
     dataset_ref = args.dataset_ref
-    if args.create_dataset or not dataset_ref:
+    
+    if args.create_dataset:
+        # Explicitly requested to create new dataset
         print("Creating synthetic evaluation dataset...")
         dataset_ref = create_evaluation_dataset(
             index_name=f"{PINECONE_INDEX_NAME}-eval",
             namespace="eval_dataset"
         )
         print(f"✓ Synthetic dataset created: {dataset_ref}")
+    elif not dataset_ref:
+        # No dataset specified, use latest version of known dataset
+        print("No dataset specified, using latest version of 'financial_rag_eval_synthetic'...")
+        try:
+            dataset_ref = weave.ref("financial_rag_eval_synthetic:latest").get()
+            print(f"✓ Using existing dataset: {dataset_ref}")
+        except Exception as e:
+            print(f"Could not find existing dataset: {e}")
+            print("Creating new synthetic evaluation dataset...")
+            dataset_ref = create_evaluation_dataset(
+                index_name=f"{PINECONE_INDEX_NAME}-eval",
+                namespace="eval_dataset"
+            )
+            print(f"✓ Synthetic dataset created: {dataset_ref}")
+    else:
+        # Specific dataset reference provided
+        print(f"Using specified dataset: {dataset_ref}")
     
     # Run evaluation using Weave's native system
     # Use the same index and namespace where evaluation data is stored
@@ -100,7 +119,9 @@ def main():
         embedding_model="text-embedding-3-small",
         chunk_size=500,
         chunk_overlap=100,
-        retriever_top_k=5
+        retriever_top_k=5,
+        llm_model="gpt-3.5-turbo",
+        llm_temperature=0.7
     )
     # We can publish the model to Weave to version and share it.
     # Any change to the model's configuration will create a new version.
@@ -155,12 +176,12 @@ if __name__ == "__main__":
     parser_eval = subparsers.add_parser('evaluate', help='Run comprehensive evaluation')
     parser_eval.add_argument(
         '--dataset-ref',
-        help='Weave dataset reference for evaluation'
+        help='Specific Weave dataset reference for evaluation'
     )
     parser_eval.add_argument(
         '--create-dataset',
         action='store_true',
-        help='Create new dataset before evaluation'
+        help='Force creation of new dataset (otherwise uses latest existing dataset)'
     )
 
     parser_eval.add_argument(
