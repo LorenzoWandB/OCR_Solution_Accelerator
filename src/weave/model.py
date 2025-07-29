@@ -29,7 +29,7 @@ class RagModel(weave.Model):
     retriever_top_k: int = 5
 
     # LLM configuration
-    llm_model: str = "gpt-3.5-turbo"
+    llm_model: str = "gpt-4o"
     llm_temperature: float = 0.7
 
     def __init__(self, index_name: str, namespace: str, **kwargs):
@@ -54,21 +54,30 @@ class RagModel(weave.Model):
         return self._retriever
 
     @weave.op()
-    def load_and_process_document(self, image_path: str):
+    def load_and_process_document(self, source_input: str, is_text_input: bool = False):
         """
-        Processes a document from an image, from extraction to vector store upload.
+        Processes a document from an image or direct text input.
         This represents the data ingestion pipeline.
+        
+        Args:
+            source_input: Either an image path or direct text content
+            is_text_input: If True, treat source_input as direct text; if False, as image path
         """
-        # 1. Extract text from the image
-        print(f"Extracting text from {image_path}...")
-        extracted_text = extract_text_from_image_local(image_path)
+        # 1. Extract text (either from image or use direct input)
+        if is_text_input:
+            print("Using provided text input...")
+            extracted_text = source_input
+        else:
+            print(f"Extracting text from {source_input}...")
+            extracted_text = extract_text_from_image_local(source_input)
         
         # 2. Chunk the extracted text
         print("Chunking text...")
         text_chunks = self.chunk_document(extracted_text)
         
         # 3. Create embeddings and load into the vector store
-        return self.embed_and_load(text_chunks, image_path)
+        source_id = "text_input" if is_text_input else source_input
+        return self.embed_and_load(text_chunks, source_id)
 
     @weave.op()
     def chunk_document(self, text: str) -> List[Dict[str, Any]]:

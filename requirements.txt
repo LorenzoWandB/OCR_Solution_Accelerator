@@ -1,8 +1,7 @@
 weave
 openai
-#os
-#json
-#dotenv
-#requests
 python-dotenv
 pinecone
+numpy
+scikit-learn
+"weave[scorers]"
