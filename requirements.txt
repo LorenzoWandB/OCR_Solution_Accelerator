@@ -1,7 +1,8 @@
 weave
-openaios
-json
-dotenv
-requests
+openai
+#os
+#json
+#dotenv
+#requests
 python-dotenv
 pinecone
