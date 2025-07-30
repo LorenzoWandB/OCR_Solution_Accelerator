@@ -1,22 +1,19 @@
 {
-  "title": "Income Statement Example",
-  "company": "Boston Tea Enterprises, Inc.",
-  "total_revenue": 150000,
-  "cost_of_goods_sold": -25000,
-  "gross_profit": 125000,
-  "operating_expenses": {
-    "payroll": 15000,
-    "utilities": 10000,
-    "rent": 15000,
-    "depreciation": 10000
+  "Title": "Income Statement Example",
+  "Company": "Boston Tea Enterprises, Inc.",
+  "Total Revenue": 150000,
+  "Cost of Goods Sold": -25000,
+  "Gross Profit": 125000,
+  "Operating Expenses": {
+    "Payroll": 15000,
+    "Utilities": 10000,
+    "Rent": 15000,
+    "Depreciation": 10000,
+    "Total Operating Expenses": -50000
   },
-  "total_operating_expenses": -50000,
-  "interest": -15000,
-  "taxes": -15000,
-  "net_profit": 45000,
-  "footer": {
-    "copyright": "© Patriot Software, LLC. All Rights Reserved.",
-    "disclaimer": "This is not intended as legal advice.",
-    "brand": "PATRIOT SOFTWARE"
-  }
+  "Interest": -15000,
+  "Taxes": -15000,
+  "Net Profit": 45000,
+  "Footer": "© Patriot Software, LLC. All Rights Reserved. This is not intended as legal advice.",
+  "Brand": "PATRIOT SOFTWARE"
 }
