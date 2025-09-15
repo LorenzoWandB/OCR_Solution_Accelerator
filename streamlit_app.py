@@ -18,7 +18,7 @@ st.set_page_config(
 @st.cache_resource
 def init_model():
     """Initializes the Weave project and the RAG model."""
-    weave.init("ocr-mrm-streamlit-v2")
+    weave.init("solution-accelerator-mrm-eval")
     
     # Configuration for our model.
     # We can centralize and easily change this.
