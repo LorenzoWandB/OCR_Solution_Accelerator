@@ -1,7 +1,8 @@
 import weave
 from typing import Optional, List, Dict, Any
 import os
-from src.ocr.extractor import extract_text_from_image_local
+import asyncio
+from src.llamaindex.extractor import extract_documents
 from src.rag.chunker import chunk_text_with_overlap
 from src.rag.embed import create_embeddings
 from src.rag.vectore_store import PineconeVectorStore
@@ -34,8 +35,8 @@ class RagModel(weave.Model):
 
     def __init__(self, index_name: str, namespace: str, **kwargs):
         super().__init__(index_name=index_name, namespace=namespace, **kwargs)
-        # We don't initialize the retriever here to avoid connecting to Pinecone
-        # when the model is just instantiated. It will be lazy-loaded.
+        # We don't initialize components here to avoid connecting to external services
+        # when the model is just instantiated. They will be lazy-loaded.
         self._retriever = None
         self._openai_client = None
     
@@ -52,32 +53,92 @@ class RagModel(weave.Model):
         if self._retriever is None:
             self._retriever = Retriever(index_name=self.index_name, namespace=self.namespace)
         return self._retriever
-
+    
     @weave.op()
-    def load_and_process_document(self, source_input: str, is_text_input: bool = False):
+    async def load_and_process_document(
+        self, 
+        source_input: Any, # Can now be a file path or a file-like object
+        document_type: Optional[str] = None # document_type is now handled by the schema in the extractor
+    ):
         """
-        Processes a document from an image or direct text input.
+        Processes a document using our new LlamaIndex extractor.
         This represents the data ingestion pipeline.
         
         Args:
-            source_input: Either an image path or direct text content
-            is_text_input: If True, treat source_input as direct text; if False, as image path
+            source_input: A file path or a file-like object from Streamlit.
+            document_type: (No longer used) The schema is now fixed in the extractor.
         """
-        # 1. Extract text (either from image or use direct input)
-        if is_text_input:
-            print("Using provided text input...")
-            extracted_text = source_input
-        else:
-            print(f"Extracting text from {source_input}...")
-            extracted_text = extract_text_from_image_local(source_input)
+        # 1. Extract structured data
+        print(f"Processing document: {getattr(source_input, 'name', source_input)}")
         
+        try:
+            # The extractor expects a list of sources
+            extracted_results = await extract_documents([source_input])
+            if not extracted_results:
+                raise ValueError("Extraction returned no results.")
+            
+            # We only process one document at a time in this flow
+            result = extracted_results[0]
+            
+            # Convert structured data to a single text block for chunking
+            extracted_text = self._structured_data_to_text(result.get('data', {}))
+            metadata = {
+                "source": result.get('filename'),
+                "document_type": "Income Statement",
+                "structured_extraction": True,
+            }
+
+        except Exception as e:
+            print(f"Error during document extraction: {e}")
+            return {
+                "processed_chunks": 0,
+                "error": str(e),
+                "extracted_text_length": 0
+            }
+
         # 2. Chunk the extracted text
         print("Chunking text...")
         text_chunks = self.chunk_document(extracted_text)
         
+        # Validate that we have chunks to process
+        if not text_chunks:
+            error_msg = "No text chunks were created. The document may be empty or extraction failed."
+            print(f"ERROR: {error_msg}")
+            return {
+                "processed_chunks": 0,
+                "error": error_msg,
+                "extracted_text_length": len(extracted_text)
+            }
+        
+        # Add metadata to chunks
+        for chunk in text_chunks:
+            chunk['metadata'] = {**metadata, **chunk.get('metadata', {})}
+        
         # 3. Create embeddings and load into the vector store
         source_id = "text_input" if is_text_input else source_input
         return self.embed_and_load(text_chunks, source_id)
+    
+    def _structured_data_to_text(self, data: Dict[str, Any]) -> str:
+        """Convert structured extraction data to text for chunking."""
+        if not data:
+            return ""
+        text_parts = []
+        for key, value in data.items():
+            if value is not None:
+                # Format field name nicely
+                field_name = key.replace('_', ' ').title()
+                text_parts.append(f"{field_name}: {value}")
+        return "\n".join(text_parts)
+
+    def _get_fallback_schema(self):
+        """Returns a simple Pydantic schema for fallback text extraction."""
+        from pydantic import BaseModel, Field
+        
+        class FallbackSchema(BaseModel):
+            extracted_text: str = Field(
+                description="The full text content of the document."
+            )
+        return FallbackSchema
 
     @weave.op()
     def chunk_document(self, text: str) -> List[Dict[str, Any]]:
@@ -91,24 +152,52 @@ class RagModel(weave.Model):
     @weave.op()
     def embed_and_load(self, chunks: List[Dict[str, Any]], source_id: str) -> Dict[str, Any]:
         """Embeds text chunks and loads them into the vector store."""
+        # Validate input
+        if not chunks:
+            error_msg = "No chunks provided for embedding"
+            print(f"ERROR: {error_msg}")
+            return {"processed_chunks": 0, "error": error_msg}
+        
         # Create embeddings for each chunk
         print(f"Creating embeddings for {len(chunks)} chunks...")
         texts_to_embed = [chunk['text'] for chunk in chunks]
+        
+        if not texts_to_embed:
+            error_msg = "No text found in chunks"
+            print(f"ERROR: {error_msg}")
+            return {"processed_chunks": 0, "error": error_msg}
+        
         embeddings = create_embeddings(texts_to_embed, model=self.embedding_model)
+        
+        if not embeddings:
+            error_msg = "Failed to create embeddings"
+            print(f"ERROR: {error_msg}")
+            return {"processed_chunks": 0, "error": error_msg}
 
         # Prepare vectors for Pinecone
         vectors_to_upsert = []
         doc_basename = os.path.basename(source_id)
         for i, chunk in enumerate(chunks):
+            # Merge chunk metadata with base metadata
+            chunk_metadata = chunk.get('metadata', {})
+            metadata = {
+                "text": chunk['text'],
+                "filename": doc_basename,
+                "chunk_number": i,
+                **chunk_metadata  # Include any additional metadata from extraction
+            }
+            
             vectors_to_upsert.append({
                 "id": f"doc_{doc_basename}_{i}",
                 "values": embeddings[i],
-                "metadata": {
-                    "text": chunk['text'],
-                    "filename": doc_basename,
-                    "chunk_number": i
-                }
+                "metadata": metadata
             })
+
+        # Final validation before upsert
+        if not vectors_to_upsert:
+            error_msg = "No vectors were prepared for upsert"
+            print(f"ERROR: {error_msg}")
+            return {"processed_chunks": 0, "error": error_msg}
 
         # Upsert vectors into Pinecone
         print(f"Upserting {len(vectors_to_upsert)} vectors into Pinecone...")

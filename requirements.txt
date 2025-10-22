@@ -4,4 +4,7 @@ python-dotenv
 pinecone
 numpy
 scikit-learn
-"weave[scorers]"
+weave[scorers]
+llama-cloud-services
+streamlit
+pydantic
